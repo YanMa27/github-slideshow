@@ -1,0 +1,25 @@
+library(rnaseq)
+filenames <- get_filenames("~/Desktop/stage_Canada/Test/kallisto")
+library(tidyverse)
+txi <- import_kallisto(filenames, "~/Desktop/stage_Canada/Test/Hs.Gencode38.ERCC92.csv", ignoreTxVersion = TRUE)
+pdf("~/Desktop/pca.pdf") #creation pdf pca
+produce_pca(txi)
+dev.off() #automatisation creation pdf
+raw_counts <- get_anno_df(txi, "raw_counts")
+write_csv(raw_counts, "~/Desktop/raw_counts.csv") #sauvegarde 
+tpm <- get_anno_df(txi, "tpm")
+write_csv(tpm, "~/Desktop/tpm.csv") #sauvegarde tpm
+design <- read_delim("~/Desktop/stage_Canada/Test/design.csv", delim = ";")
+dds <- deseq2_analysis(txi, design, ~ group)
+# une fois pour chaque comparaison 
+de <- DESeq2::results(dds, contrast = c("group", "astro", "lympho"))
+de <- as.data.frame(de)
+de_sign <- filter(de, !is.na(padj), padj < 0.05, abs(log2FoldChange) > log2(1.5))
+head(txi$anno) #affichage premiere ligne 
+de_anno <- rownames_to_column(de, "ensembl_gene") %>% 
+  left_join(txi$anno, by = "ensembl_gene") %>%
+  dplyr::select(id, ensembl_gene, symbol, entrez_id, transcript_type, everything())
+write_csv(de_anno, "~/Desktop/astro_vs_lympho.csv") #sauvegarde
+pdf("~/Desktop/volcano.pdf")
+produce_volcano(de, fc_threshold = 1.5) #volcanoplot bleu=astro rouge=lympho
+dev.off()
